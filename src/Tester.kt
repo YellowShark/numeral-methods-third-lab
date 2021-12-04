@@ -5,17 +5,72 @@ import kotlin.properties.Delegates
 import kotlin.random.Random
 
 class Tester {
-    private var a = mutableListOf<Float>()
-    private var b = mutableListOf<Float>()
-    private var c = mutableListOf<Float>()
-    private var p = mutableListOf<Float>()
-    private var f = mutableListOf<Float>()
-    private var q = mutableListOf<Float>()
-    private var x = mutableListOf<Float>()
+    private lateinit var a: Array<Float>
+    private lateinit var b: Array<Float>
+    private lateinit var c: Array<Float>
+    private lateinit var p: Array<Float>
+    private lateinit var f: Array<Float>
+    private lateinit var q: Array<Float>
+    private lateinit var x: Array<Float>
     private var avgMark by Delegates.notNull<Float>()
-    private lateinit var _x: List<Float>
+    private lateinit var _x: Array<Float>
+
+    /// <summary />
+    /// <param name="kolTests">количество систем, которые надо решить</param>
+    /// <param name="range">диапазон значений</param>
+    /// <param name="kolEquation">количество уравнений</param>
+    /// <param name="epsAvg">средняя относительная погрешность</param>
+    /// <param name="avgMark">среднее значение оценки точности</param>
+    fun test(kolTests: Int, range: Float, kolEquation: Int): Pair<Float, Float> {
+        var epsAvg = 0f
+        var avgMark = 0f
+        val _range = abs(range)
+        val epsAvgs = arrayOfZeros(kolTests)
+        val avgMarks = arrayOfZeros(kolTests)
+        var curX = arrayOfZeros(kolEquation)
+        var noErr = false
+
+        for (i in 0 until kolTests) {
+            avgMarks[i] = 0f
+            while (!noErr) {
+                generateArrays(kolEquation, _range)
+                curX = generateX(kolEquation, _range)
+                generateF(curX)
+                noErr = solveSystem(
+                    a,
+                    b,
+                    c,
+                    p,
+                    q,
+                    f,
+                ) == 0 //если все функции выдали нули, значит ошибки не было
+                avgMarks[i] = this.avgMark
+            }
+            epsAvgs[i] = 0f
+            for (j in 0 until kolEquation) {
+                epsAvgs[i] = max(abs(curX[j] - _x[j]), epsAvgs[i])
+            }
+        }
+
+        epsAvg = 0f
+        avgMark = 0f
+        //а теперь считаем средние значения оценок
+        for (i in 0 until kolTests) {
+            epsAvg += epsAvgs[i]
+            avgMark += avgMarks[i]
+        }
+
+        return epsAvg / kolTests to avgMark / kolTests
+    }
 
     private fun generateArrays(kolEquation: Int, range: Float) {
+        a = arrayOfZeros(kolEquation - 1)
+        b = arrayOfZeros(kolEquation)
+        c = arrayOfZeros(kolEquation - 1)
+        p = arrayOfZeros(kolEquation)
+        q = arrayOfZeros(kolEquation)
+        x = arrayOfZeros(kolEquation)
+
         for (i in 0 until (kolEquation - 1)) {
             a[i] = Random.nextFloat() * 2 * range - range
             b[i] = Random.nextFloat() * 2 * range - range
@@ -36,64 +91,119 @@ class Tester {
         q[2] = c[1]
     }
 
-    private fun generateX(kolEquation: Int, range: Float): List<Float> {
-        val x = mutableListOf<Float>()
+    private fun generateX(kolEquation: Int, range: Float): Array<Float> {
+        val x = arrayOfZeros(kolEquation)
         for (i in 0 until kolEquation - 1) {
             x[i] = Random.nextFloat() * 2 * range - range
         }
         return x
     }
 
-    private fun generateX1(kolEquation: Int): List<Float> {
-        val x = mutableListOf<Float>()
+    private fun generateX1(kolEquation: Int): Array<Float> {
+        val x = arrayOfZeros(kolEquation)
         for (i in 0 until kolEquation) {
             x[i] = 1f
         }
         return x
     }
 
-    private fun generateF(xx: List<Float>) {
+    private fun generateF(xx: Array<Float>) {
         val N = b.size
+        f = arrayOfZeros(N)
         for (i in 0 until N) {
-            f[0] += p[i] * xx[i]
-            f[1] += q[i] * xx[i]
+            f[0] += (p[i] * xx[i])
+            f[1] += (q[i] * xx[i])
         }
 
         for (i in 2 until N) {
             f[i] = a[i - 1] * xx[i - 1] + b[i] * xx[i]
             if (i < N - 1)
-                f[i] += c[i] * xx[i + 1]
+                f[i] += (c[i] * xx[i + 1])
         }
+    }
+
+    private fun solveSystem(
+        _a: Array<Float>,
+        _b: Array<Float>,
+        _c: Array<Float>,
+        _p: Array<Float>,
+        _q: Array<Float>,
+        _f: Array<Float>
+    ): Int {
+        avgMark = 0f
+        val N = x.size
+        val bufa = _a
+        val bufb = _b
+        val bufc = _c
+        val bufp = _p
+        val bufq = _q
+
+        a = _a.clone()
+        b = _b.clone()
+        c = _c.clone()
+        p = _p.clone()
+        q = _q.clone()
+        f = _f.clone()
+
+        val ans1 = findAnswer1stage()
+        val ans2 = findAnswer2stage()
+        val ans3 = findAnswer3stage()
+
+        var result = ans1 + ans2 + ans3
+
+        _x = x.clone()
+
+        if (result > 0)
+            return result
+
+        a = bufa
+        b = bufb
+        c = bufc
+        p = bufp
+        q = bufq
+
+        x = generateX1(b.size)
+        generateF(x)
+
+        result = findAnswer1stage() + findAnswer2stage() + findAnswer3stage()
+        if (result > 0)
+            return result
+
+        for (i in 0 until N) {
+            avgMark = max(avgMark, abs(x[i] - 1))
+        }
+
+        return 0
     }
 
     private fun findAnswer1stage(): Int {
         val N = b.size
         var chis: Float
-        for (i in N - 1 downTo 1) {
-            try {
-                if (i < N - 1) {
-                    chis = -c[i]
-                    b[i] += a[i] * chis
-                    c[i] = 0f
-                    f[i] += f[i + 1] * chis
-                }
-                chis = 1 / b[i]
-                a[i - 1] *= chis
-                b[i] = 1f
-                f[i] *= chis
-
-                chis = -p[i]
-                p[i] = 0f
-                p[i - 1] += a[i - 1] * chis
-                f[0] += f[i] * chis
-
-                chis = -q[i]
-                q[i] = 0f
-                q[i - 1] += a[i - 1] * chis
-                f[1] += f[i] * chis
-            } catch (ex: ArithmeticException) {
-                return i + 1
+        for (i in N - 1 downTo 2) {
+            if (i < N - 1) {
+                chis = -c[i]
+                b[i] += (a[i] * chis)
+                c[i] = 0f
+                f[i] += (f[i + 1] * chis)
             }
+            if (b[i] != 0f) {
+                chis = 1 / b[i]
+            } else
+                return i + 1
+            a[i - 1] *= (chis)
+            b[i] = 1f
+            f[i] *= (chis)
+
+            chis = -p[i]
+            p[i] = 0f
+            p[i - 1] += (a[i - 1] * chis)
+            f[0] += (f[i] * chis)
+
+            chis = -q[i]
+            q[i] = 0f
+            q[i - 1] += (a[i - 1] * chis)
+            f[1] += (f[i] * chis)
+
         }
         c[0] = p[1]
         b[1] = q[1]
@@ -103,30 +213,33 @@ class Tester {
 
     private fun findAnswer2stage(): Int {
         var chis: Float
-        try {
+        if (b[1] != 0f)
             chis = -c[0] / b[1]
-            b[0] += a[0] * chis
-            c[0] = 0f
-            f[0] += f[1] * chis
-
-            chis = 1 / b[0]
-            b[0] = 1f
-            f[0] *= chis
-        } catch (ex: ArithmeticException) {
+        else
             return 1
-        }
+        b[0] += (a[0] * chis)
+        c[0] = 0f
+        f[0] += (f[1] * chis)
 
-        try {
-            chis = -a[0]
-            a[0] = 0f
-            f[1] += chis * f[0]
+        if (b[0] != 0f) {
+            chis = 1 / b[0]
+        } else
+            return 1
+        b[0] = 1f
+        f[0] *= chis
 
+
+        chis = -a[0]
+        a[0] = 0f
+        f[1] += chis * f[0]
+
+        if (b[1] != 0f) {
             chis = 1 / b[1]
-            b[1] = 1f
-            f[1] *= chis
-        } catch (ex: ArithmeticException) {
+        } else
             return 2
-        }
+        b[1] = 1f
+        f[1] *= chis
+
         return 0
     }
 
@@ -146,104 +259,6 @@ class Tester {
         }
         return 0
     }
-
-    private fun solveSystem(
-        _a: List<Float>,
-        _b: List<Float>,
-        _c: List<Float>,
-        _p: List<Float>,
-        _q: List<Float>,
-        _f: List<Float>
-    ): Int {
-        avgMark = 0f
-        val N = x.size
-        val bufa = _a
-        val bufb = _b
-        val bufc = _c
-        val bufp = _p
-        val bufq = _q
-
-        a = _a.toMutableList()
-        b = _b.toMutableList()
-        c = _c.toMutableList()
-        p = _p.toMutableList()
-        q = _q.toMutableList()
-        f = _f.toMutableList()
-
-        var result = findAnswer1stage() + findAnswer2stage() + findAnswer3stage()
-
-        _x = x
-
-        if (result > 0)
-            return result
-
-        a = bufa.toMutableList()
-        b = bufb.toMutableList()
-        c = bufc.toMutableList()
-        p = bufp.toMutableList()
-        q = bufq.toMutableList()
-
-        x = generateX1(b.size).toMutableList()
-        generateF(x)
-
-        result = findAnswer1stage() + findAnswer2stage() + findAnswer3stage()
-        if (result > 0)
-            return result
-
-        for (i in 0 until N) {
-            avgMark = max(avgMark, abs(x[i] - 1))
-        }
-
-        return 0
-    }
-
-    /// <summary />
-    /// <param name="kolTests">количество систем, которые надо решить</param>
-    /// <param name="range">диапазон значений</param>
-    /// <param name="kolEquation">количество уравнений</param>
-    /// <param name="epsAvg">средняя относительная погрешность</param>
-    /// <param name="avgMark">среднее значение оценки точности</param>
-    fun test(kolTests: Int, range: Float, kolEquation: Int): Pair<Float, Float> {
-        var epsAvg = 0f
-        var avgMark = 0f
-        val _range = abs(range)
-        val epsAvgs = mutableListOf<Float>()
-        val avgMarks = mutableListOf<Float>()
-        var curX = mutableListOf<Float>()
-        val solvedX = mutableListOf<Float>()
-        var noErr = false
-        var curEps = 0
-
-        for (i in 0 until kolTests) {
-            avgMarks[i] = 0f
-            while (!noErr) {
-                generateArrays(kolEquation, _range)
-                curX = generateX(kolEquation, _range).toMutableList()
-                generateF(curX)
-                noErr = solveSystem(
-                    a,
-                    b,
-                    c,
-                    p,
-                    q,
-                    f,
-                ) == 0 //если все функции выдали нули, значит ошибки не было
-            }
-            epsAvgs[i] = 0f
-            for (j in 0 until kolEquation) {
-                epsAvgs[i] = max(abs(curX[j] - solvedX[j]), epsAvgs[i])
-            }
-        }
-
-        //а теперь считаем средние значения оценок
-        for (i in 0 until kolTests) {
-            epsAvg += epsAvgs[i]
-            avgMark += avgMarks[i]
-        }
-        epsAvg /= kolTests
-        avgMark /= kolTests
-
-        return epsAvg to avgMark
-    }
-
 }
+
+fun arrayOfZeros(size: Int): Array<Float> = Array(size, init = { 0f })
