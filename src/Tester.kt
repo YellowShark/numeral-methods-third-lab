@@ -13,29 +13,26 @@ class Tester {
     private lateinit var q: Array<Float>
     private lateinit var x: Array<Float>
     private var avgMark by Delegates.notNull<Float>()
-    private lateinit var _x: Array<Float>
+    private lateinit var solvedX: Array<Float>
 
-    /// <summary />
-    /// <param name="kolTests">количество систем, которые надо решить</param>
-    /// <param name="range">диапазон значений</param>
-    /// <param name="kolEquation">количество уравнений</param>
-    /// <param name="epsAvg">средняя относительная погрешность</param>
-    /// <param name="avgMark">среднее значение оценки точности</param>
+    /**
+     * @param kolTests количество систем, которые надо решить
+     * @param range диапазон значений
+     * @param kolEquation количество уравнений
+     */
     fun test(kolTests: Int, range: Float, kolEquation: Int): Pair<Float, Float> {
-        var epsAvg = 0f
-        var avgMark = 0f
-        val _range = abs(range)
+        val absRange = abs(range)
         val epsAvgs = arrayOfZeros(kolTests)
         val avgMarks = arrayOfZeros(kolTests)
-        var curX = arrayOfZeros(kolEquation)
+        var currX = arrayOfZeros(kolEquation)
         var noErr = false
 
         for (i in 0 until kolTests) {
             avgMarks[i] = 0f
             while (!noErr) {
-                generateArrays(kolEquation, _range)
-                curX = generateX(kolEquation, _range)
-                generateF(curX)
+                generateArrays(kolEquation, absRange)
+                currX = generateX(kolEquation, absRange)
+                generateF(currX)
                 noErr = solveSystem(
                     a,
                     b,
@@ -48,12 +45,15 @@ class Tester {
             }
             epsAvgs[i] = 0f
             for (j in 0 until kolEquation) {
-                epsAvgs[i] = max(abs(curX[j] - _x[j]), epsAvgs[i])
+                epsAvgs[i] = max(abs(currX[j] - solvedX[j]), epsAvgs[i])
             }
         }
 
-        epsAvg = 0f
-        avgMark = 0f
+        // epsAvg средняя относительная погрешность
+        // avgMark среднее значение оценки точности
+        var epsAvg = 0f
+        var avgMark = 0f
+
         //а теперь считаем средние значения оценок
         for (i in 0 until kolTests) {
             epsAvg += epsAvgs[i]
@@ -151,7 +151,7 @@ class Tester {
 
         var result = ans1 + ans2 + ans3
 
-        _x = x.clone()
+        solvedX = x.clone()
 
         if (result > 0)
             return result
